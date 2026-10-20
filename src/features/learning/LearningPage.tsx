@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { AudioButton } from '../../components/AudioButton';
 import { EmptyState } from '../../components/EmptyState';
 import { ProgressBar } from '../../components/ProgressBar';
-import { AnswerSlots } from './AnswerSlots';
+import { AnswerSlots, findWrongWordIndexes } from './AnswerSlots';
 import { soundService } from '../../services/soundService';
 import { speechService } from '../../services/speechService';
 import type {
@@ -60,10 +60,19 @@ interface Feedback {
   kind: FeedbackKind;
   text: string;
   wrongInput?: string;
+  /** 第二次及以后答错时，高亮拼错的单词序号 */
+  wrongWords?: number[];
 }
 
 /** 答对后成功状态展示时长（毫秒） */
 export const SUCCESS_DELAY_MS = 450;
+
+/** 手机 / iPad 等触屏设备（iPadOS 会伪装成 Mac，需额外判断触点数） */
+const detectTouchDevice = () => {
+  if (typeof window === 'undefined') return false;
+  const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  return coarse || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1);
+};
 
 export function LearningPage({
   vocabularies,
@@ -92,6 +101,7 @@ export function LearningPage({
   const cardRef = useRef<HTMLFormElement>(null);
   const [attemptKey, setAttemptKey] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isTouch] = useState(detectTouchDevice);
   const timersRef = useRef<number[]>([]);
   // 本轮内最新的记录，避免异步持久化期间读到旧数据
   const studyRef = useRef(new Map<string, StudyRecord>());
@@ -244,10 +254,14 @@ export function LearningPage({
 
   const currentState = currentCard ? states[currentId] : null;
 
-  const handleSubmit = async (event: Event) => {
+  const handleSubmit = (event: Event) => {
     event.preventDefault();
+    void submitValue(answer);
+  };
+
+  const submitValue = async (value: string) => {
     if (!currentCard || !currentState || busy || currentState.solved) return;
-    if (!answer.trim()) {
+    if (!value.trim()) {
       setFeedback({ kind: 'info', text: '请先输入英文答案再提交。' });
       inputRef.current?.focus();
       return;
@@ -259,7 +273,7 @@ export function LearningPage({
       currentState,
       studyRecord: studyRef.current.get(currentId) ?? null,
       wrongQuestion: wrongRef.current.get(currentId) ?? null,
-      input: answer,
+      input: value,
       now: new Date().toISOString(),
       sessionId,
       ignorePunctuation: settings.answerIgnorePunctuation,
@@ -278,7 +292,16 @@ export function LearningPage({
       return;
     }
 
-    setFeedback({ kind: 'error', text: result.message, wrongInput: answer.trim() });
+    const secondWrong = result.state.wrongAttempts >= 2;
+    const wrongWords = secondWrong
+      ? findWrongWordIndexes(currentCard.vocabulary.word, value, settings.answerIgnorePunctuation)
+      : undefined;
+    setFeedback({
+      kind: 'error',
+      text: secondWrong ? '还是不对，已用红色标出拼错的单词，请重新输入' : result.message,
+      wrongInput: value.trim(),
+      wrongWords,
+    });
     await persist({ studyRecord: result.studyRecord, wrongQuestion: result.wrongQuestion, attemptLog: result.attemptLog });
     setBusy(false);
     schedule(() => inputRef.current?.focus(), 0);
@@ -418,7 +441,7 @@ export function LearningPage({
         <form
           ref={cardRef}
           className={`card stack learningCard ${feedback?.kind === 'success' ? 'success' : ''} ${isFullscreen ? 'isFullscreen' : ''}`}
-          onSubmit={(event) => void handleSubmit(event)}
+          onSubmit={handleSubmit}
           aria-labelledby="learning-title"
         >
           <div className="sectionHeader">
@@ -460,13 +483,14 @@ export function LearningPage({
             </div>
           ) : null}
           <AnswerSlots
-            key={`${sessionId}-${currentId}`}
             word={currentCard.vocabulary.word}
             value={answer}
             wrongValue={feedback?.wrongInput}
+            wrongWordIndexes={feedback?.kind === 'error' ? feedback.wrongWords : undefined}
             status={feedback?.kind ?? null}
             animationKey={attemptKey}
-            disabled={currentState.solved}
+            disabled={currentState.solved || busy}
+            autoSubmit={isTouch}
             inputRef={inputRef}
             onInput={(next) => {
               // 用户输入到达目标词空格位置时自动补齐空格，避免手动打空格
@@ -477,6 +501,8 @@ export function LearningPage({
                 appended += ' ';
               }
               setAnswer(appended);
+              // 触屏设备没有回车，填满全部字符后自动提交
+              if (isTouch && appended.length >= target.length) void submitValue(appended);
             }}
           />
           <div id="answer-feedback" aria-live="polite">
@@ -495,8 +521,10 @@ export function LearningPage({
               {currentState.showAnswerUsed ? <p className="answerReveal"><strong>答案：</strong>{currentCard.vocabulary.word}</p> : null}
             </div>
           ) : null}
-          <div className="buttonRow start">
-            <button type="submit" className="primaryButton" disabled={busy || currentState.solved}>提交</button>
+          <div className="buttonRow start learningActions">
+            {isTouch ? null : (
+              <button type="submit" className="primaryButton" disabled={busy || currentState.solved}>提交</button>
+            )}
             <button type="button" className="secondaryButton" onClick={handleSkip} disabled={busy}>跳过</button>
             <button type="button" className="secondaryButton" onClick={handleHint} disabled={hintLevel >= MAX_HINT_LEVEL}>
               提示（{hintLevel}/{MAX_HINT_LEVEL}）

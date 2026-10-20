@@ -183,6 +183,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important;
 .slots.error { animation: slotsShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
 .slots.error .slot::after { background: #f87171; }
 .slots.showingWrong .slotChar { color: #dc2626; animation: wrongFade 1.6s ease forwards; }
+/* 第二次答错：高亮拼错的单词 */
+.slotGroup.wrongWord { border-radius: 8px; background: rgba(239, 68, 68, 0.12); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12); animation: wrongPulse 1.2s ease-in-out 2; }
+.slotGroup.wrongWord .slot::after { background: #dc2626; }
+.slotGroup.wrongWord .slotChar { color: #dc2626; }
+.slots.showingWrong .slotGroup.wrongWord .slotChar { animation: none; opacity: 1; }
 .slotsInput {
   position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 18px;
   opacity: 0; background: transparent; color: transparent; caret-color: transparent; cursor: text; font-size: 16px;
@@ -275,6 +280,17 @@ fieldset.mappingGrid legend { padding: 0 0.4rem; font-weight: 600; }
   100% { opacity: 0.25; }
 }
 
+@keyframes wrongPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12); }
+  50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0.22); }
+}
+
+/* 平板（iPad）与手机：加大触控区域 */
+@media (pointer: coarse) {
+  .learningActions button { min-height: 44px; }
+  .slotsStage { padding: 1.2rem 0.5rem 1rem; }
+}
+
 @media (max-width: 1120px) {
   .pageGrid { grid-template-columns: 1fr; }
   .statsGrid { grid-template-columns: repeat(2, minmax(100px, 1fr)); }
@@ -292,4 +308,14 @@ fieldset.mappingGrid legend { padding: 0 0.4rem; font-weight: 600; }
   .tableWrap td { border: none; padding: 0.2rem 0; display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
   .tableWrap td[data-label]::before { content: attr(data-label); color: #64748b; font-size: 0.82rem; min-width: 4.5em; }
   .toast { left: 1rem; right: 1rem; }
+  /* 手机学习页 */
+  .promptMeaning { font-size: 1.3rem; }
+  .slots { font-size: clamp(1.25rem, 6vw, 1.6rem); gap: 0.7rem 0; }
+  .slotGroup { gap: 0.28em; }
+  .slotGap { width: 0.8em; }
+  .learningCard .sectionHeader { flex-direction: column; align-items: stretch; }
+  .learningActions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .learningActions button { width: 100%; padding-left: 0.4rem; padding-right: 0.4rem; }
+  .learningCard:fullscreen, .learningCard.isFullscreen { align-content: start; padding: 1rem; }
+  .learningCard.isFullscreen .slots { font-size: clamp(1.4rem, 7vw, 2rem); }
 }
