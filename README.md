@@ -144,12 +144,12 @@ src/
 项目已内置 GitHub Actions 工作流 `.github/workflows/deploy.yml`，推送到 `main` 分支即自动构建并发布到 GitHub Pages。
 
 启用步骤：
-1. 把代码推送到 GitHub 仓库（默认分支 `main`）；
+1. 把代码推送到 GitHub 仓库（仓库名 `easyToLearn`，默认分支 `main`）；
 2. 打开仓库 **Settings → Pages**，在 **Build and deployment → Source** 中选择 **GitHub Actions**（而不是 Deploy from a branch）；
-3. 首次推送后，Actions 页会出现 `Deploy to GitHub Pages` 任务；完成后站点地址会出现在 Pages 设置页，形如 `https://<user>.github.io/<repo>/`。
+3. 首次推送后，Actions 页会出现 `Deploy to GitHub Pages` 任务；完成后站点访问地址为 `https://<user>.github.io/easyToLearn/`。
 4. 之后每次 `git push origin main` 都会自动重新部署；也可以在 Actions 页手动触发 `Run workflow`。
 
-关于路径：`vite.config.ts` 已把 `base` 设为 `'./'`（相对路径），所以无论是 `user.github.io/<repo>/` 还是绑定自定义域名都可直接访问，无需修改配置。若要绑定自定义域名，在 `public/CNAME` 中写入你的域名即可（构建时会被原样复制到 `dist/CNAME`）。
+关于路径：`vite.config.ts` 中 `base` 已显式设为 `'/easyToLearn/'`，对应仓库同名子路径。若后续想绑定自定义域名或改仓库名，相应调整 `base` 并在 `public/CNAME` 写入域名即可。
 
 工作流做了什么：安装依赖（`npm ci`）→ 运行测试（`npm test`）→ 构建（`npm run build`）→ 复制 `index.html` 为 `404.html`（避免直链访问出现 404）→ 上传 `dist` 并通过 `actions/deploy-pages` 发布。
 
