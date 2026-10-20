@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { AppLayout, type AppView } from '../components/AppLayout';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { defaultSettings } from '../db/database';
+import { BuiltinLibraryDialog } from '../features/builtin-library/BuiltinLibraryDialog';
 import { ExcelImport } from '../features/import-export/ExcelImport';
 import { LearningPage, type LearningLaunchRequest, type PracticePersistPayload } from '../features/learning/LearningPage';
 import { MistakeBook } from '../features/mistakes/MistakeBook';
@@ -48,6 +49,7 @@ export function App() {
   const [voices, setVoices] = useState<SpeechVoiceOption[]>([]);
   const [launchRequest, setLaunchRequest] = useState<LearningLaunchRequest | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showBuiltinLibrary, setShowBuiltinLibrary] = useState(false);
 
   const notify = (type: 'success' | 'error', text: string) => setMessage({ type, text });
 
@@ -79,6 +81,27 @@ export function App() {
     const timer = window.setTimeout(() => setMessage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [message]);
+
+  // 首次打开（词库为空且未关闭过）时提示用户从内置词库中选择性导入
+  useEffect(() => {
+    if (loading) return;
+    if (bundle.vocabularies.length > 0) return;
+    try {
+      if (window.localStorage.getItem('builtinLibraryPromptDismissed') === '1') return;
+    } catch {
+      /* localStorage 不可用则忽略 */
+    }
+    setShowBuiltinLibrary(true);
+  }, [loading, bundle.vocabularies.length]);
+
+  const closeBuiltinLibrary = () => {
+    setShowBuiltinLibrary(false);
+    try {
+      window.localStorage.setItem('builtinLibraryPromptDismissed', '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   const stats = useMemo(
     () => vocabularyService.buildStats(bundle.vocabularies, bundle.studyRecords, bundle.wrongQuestions, bundle.attemptLogs),
@@ -187,6 +210,7 @@ export function App() {
         onCommit={importVocabularies}
         aiApiKey={bundle.settings.aiApiKey}
         aiModel={bundle.settings.aiModel}
+        onOpenBuiltinLibrary={() => setShowBuiltinLibrary(true)}
       />
       <section className="card stack" aria-labelledby="ai-settings-title">
         <h3 id="ai-settings-title">AI 在线生成设置</h3>
@@ -344,6 +368,15 @@ export function App() {
           />
         ) : null}
       </AppLayout>
+
+      {showBuiltinLibrary ? (
+        <BuiltinLibraryDialog
+          existing={bundle.vocabularies}
+          onImport={importVocabularies}
+          onClose={closeBuiltinLibrary}
+          onNotify={notify}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}

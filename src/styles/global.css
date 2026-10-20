@@ -82,6 +82,14 @@ label { display: grid; gap: 0.45rem; font-size: 0.95rem; color: #334155; }
 }
 .dialog { width: min(720px, 100%); }
 .dialog.large { width: min(820px, 100%); }
+.builtinLibraryList {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem;
+  max-height: 320px; overflow-y: auto;
+}
+.builtinLibraryList li {
+  padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc;
+}
+.builtinLibraryList .checkboxLabel { gap: 0.5rem; }
 .appLoading { min-height: 100vh; display: grid; place-content: center; gap: 1rem; padding: 2rem; }
 .progressBar { display: grid; gap: 0.4rem; }
 .progressBar > div { height: 10px; border-radius: 999px; background: #e2e8f0; overflow: hidden; position: relative; }

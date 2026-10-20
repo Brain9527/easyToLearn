@@ -17,6 +17,8 @@ interface ExcelImportProps {
   onCommit: (changed: Vocabulary[]) => Promise<void>;
   aiApiKey?: string;
   aiModel?: string;
+  /** 打开内置词汇选择弹窗 */
+  onOpenBuiltinLibrary?: () => void;
 }
 
 export const IMPORT_FIELD_LABELS: Record<keyof ImportColumnMap, string> = {
@@ -53,8 +55,8 @@ const STEPS = ['选择文件', '字段映射', '预览校验', '确认写入'];
 
 type Status = { type: 'info' | 'success' | 'error'; text: string } | null;
 
-export function ExcelImport({ existing, onCommit, aiApiKey = '', aiModel = 'deepseek-chat' }: ExcelImportProps) {
-  const [source, setSource] = useState<'file' | 'ai'>('file');
+export function ExcelImport({ existing, onCommit, aiApiKey = '', aiModel = 'deepseek-chat', onOpenBuiltinLibrary }: ExcelImportProps) {
+  const [source, setSource] = useState<'file' | 'ai' | 'builtin'>('file');
   const [parsed, setParsed] = useState<ParsedImportFile | null>(null);
   const [mapping, setMapping] = useState<ImportColumnMap>(emptyMap);
   const [strategy, setStrategy] = useState<ImportDuplicateStrategy>('skip');
@@ -154,6 +156,10 @@ export function ExcelImport({ existing, onCommit, aiApiKey = '', aiModel = 'deep
           <input type="radio" name="import-source" checked={source === 'ai'} onChange={() => setSource('ai')} />
           AI 在线生成
         </label>
+        <label className="checkboxLabel">
+          <input type="radio" name="import-source" checked={source === 'builtin'} onChange={() => setSource('builtin')} />
+          内置词汇
+        </label>
       </div>
 
       {source === 'file' ? (
@@ -172,7 +178,7 @@ export function ExcelImport({ existing, onCommit, aiApiKey = '', aiModel = 'deep
             onChange={(event) => void handleFile(event.currentTarget.files?.[0])}
           />
         </label>
-      ) : (
+      ) : source === 'ai' ? (
         <AiGeneratePanel
           apiKey={aiApiKey}
           model={aiModel}
@@ -185,6 +191,20 @@ export function ExcelImport({ existing, onCommit, aiApiKey = '', aiModel = 'deep
           }}
           onStatus={setStatus}
         />
+      ) : (
+        <div className="stack">
+          <p className="helperText">从内置词库中选择一个或多个主题导入到本地词库，重复单词会自动跳过。</p>
+          <div className="buttonRow start">
+            <button
+              type="button"
+              className="primaryButton"
+              disabled={!onOpenBuiltinLibrary || submitting}
+              onClick={() => onOpenBuiltinLibrary?.()}
+            >
+              打开内置词库
+            </button>
+          </div>
+        </div>
       )}
 
       {parsed ? <p className="helperText">当前数据来源：{parsed.fileName}（共 {parsed.rows.length} 行）</p> : null}

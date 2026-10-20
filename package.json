@@ -1,6 +1,6 @@
 {
   "name": "jiandanxue", "version": "1.0.0", "private": true, "type": "module",
-  "scripts": {"dev": "vite --host 0.0.0.0", "build": "tsc --noEmit && vite build", "test": "vitest run"},
+  "scripts": {"libraries:manifest": "node scripts/generate-libraries-manifest.mjs", "dev": "npm run libraries:manifest && vite --host 0.0.0.0", "build": "npm run libraries:manifest && tsc --noEmit && vite build", "test": "vitest run"},
   "dependencies": {"preact": "^10.26.4", "idb": "^8.0.2", "xlsx": "^0.18.5", "lucide-preact": "^0.468.0"},
   "devDependencies": {"@preact/preset-vite": "^2.10.1", "@testing-library/preact": "^3.2.4", "@testing-library/user-event": "^14.6.1", "@types/node": "^22.13.10", "fake-indexeddb": "^6.0.0", "jsdom": "^26.0.0", "typescript": "^5.7.3", "vite": "^6.2.1", "vitest": "^3.0.8"}
 }
