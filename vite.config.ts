@@ -1,4 +1,4 @@
 import { defineConfig } from 'vitest/config';
 import preact from '@preact/preset-vite';
-// 仓库名为 easyToLearn，GitHub Pages 访问路径为 https://<user>.github.io/easyToLearn/
-export default defineConfig({ base: '/easyToLearn/', plugins: [preact()], test: { environment: 'jsdom', setupFiles: ['./src/tests/setup.ts'] } });
+// base 使用相对路径，兼容任意部署子路径（含 GitHub Pages 的 /easyToLearn/）
+export default defineConfig({ base: './', plugins: [preact()], test: { environment: 'jsdom', setupFiles: ['./src/tests/setup.ts'] } });
