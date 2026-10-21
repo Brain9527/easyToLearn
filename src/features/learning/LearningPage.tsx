@@ -293,12 +293,13 @@ export function LearningPage({
     }
 
     const secondWrong = result.state.wrongAttempts >= 2;
+    const justRevealed = result.state.showAnswerUsed && !currentState.showAnswerUsed;
     const wrongWords = secondWrong
       ? findWrongWordIndexes(currentCard.vocabulary.word, value, settings.answerIgnorePunctuation)
       : undefined;
     setFeedback({
       kind: 'error',
-      text: secondWrong ? '还是不对，已用红色标出拼错的单词，请重新输入' : result.message,
+      text: secondWrong && !justRevealed ? '还是不对，已用红色标出拼错的单词，请重新输入' : result.message,
       wrongInput: value.trim(),
       wrongWords,
     });
@@ -315,18 +316,24 @@ export function LearningPage({
   };
 
   const handleHint = () => {
-    if (!currentCard || !currentState || hintLevel >= MAX_HINT_LEVEL) return;
+    if (!currentCard || !currentState || busy || currentState.solved || hintLevel >= MAX_HINT_LEVEL) return;
     const nextLevel = hintLevel + 1;
+    const nextState = { ...currentState, hintsUsed: nextLevel };
     setHintLevel(nextLevel);
-    setStates({ ...states, [currentId]: { ...currentState, hintsUsed: nextLevel } });
-    if (nextLevel === 4) void onSpeak(currentCard.vocabulary.word);
+    setStates({ ...states, [currentId]: nextState });
+    // 只更新受控值，不触发触屏输入事件的自动提交。
+    const hintAnswer = buildHints(currentCard.vocabulary, nextLevel)[nextLevel - 1].text;
+    setAnswer(hintAnswer);
+    setFeedback(null);
+    if (hintAnswer === currentCard.vocabulary.word) void handleReveal(nextState);
     inputRef.current?.focus();
   };
 
-  const handleReveal = async () => {
-    if (!currentCard || !currentState || currentState.showAnswerUsed || busy) return;
+  const handleReveal = async (state = currentState) => {
+    if (!currentCard || !state || state.showAnswerUsed || state.solved || busy) return;
+    setBusy(true);
     const next = revealAnswer({
-      currentState,
+      currentState: state,
       studyRecord: studyRef.current.get(currentId) ?? null,
       wrongQuestion: wrongRef.current.get(currentId) ?? null,
       vocabularyId: currentId,
@@ -337,6 +344,7 @@ export function LearningPage({
     setStates({ ...states, [currentId]: next.state });
     setFeedback({ kind: 'info', text: '已显示答案，本题不计为独立答对，并已加入错题本。请照着拼写一遍。' });
     await persist({ studyRecord: next.studyRecord, wrongQuestion: next.wrongQuestion, attemptLog: null });
+    setBusy(false);
     inputRef.current?.focus();
   };
 
@@ -526,10 +534,10 @@ export function LearningPage({
               <button type="submit" className="primaryButton" disabled={busy || currentState.solved}>提交</button>
             )}
             <button type="button" className="secondaryButton" onClick={handleSkip} disabled={busy}>跳过</button>
-            <button type="button" className="secondaryButton" onClick={handleHint} disabled={hintLevel >= MAX_HINT_LEVEL}>
+            <button type="button" className="secondaryButton" onClick={handleHint} disabled={busy || currentState.solved || hintLevel >= MAX_HINT_LEVEL}>
               提示（{hintLevel}/{MAX_HINT_LEVEL}）
             </button>
-            <button type="button" className="ghostButton" onClick={() => void handleReveal()} disabled={busy || currentState.showAnswerUsed}>
+            <button type="button" className="ghostButton" onClick={() => void handleReveal()} disabled={busy || currentState.solved || currentState.showAnswerUsed}>
               显示答案
             </button>
           </div>

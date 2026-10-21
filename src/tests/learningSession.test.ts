@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_HINT_LEVEL,
   buildHints,
   buildSessionCards,
   createSessionState,
@@ -39,7 +40,7 @@ const answer = (ctx: Ctx, input: string, sessionId = 's1') => {
 
 const freshCtx = (): Ctx => ({ state: createSessionState(hello.id), study: null, wrong: null });
 
-describe('学习会话', () => {
+ describe('学习会话', () => {
   it('正确答案更新学习记录并计为首次答对', () => {
     const ctx = freshCtx();
     const result = answer(ctx, ' Hello ');
@@ -126,14 +127,50 @@ describe('学习会话', () => {
     expect(mistakes.map((item) => item.vocabulary.word)).toEqual(['b']);
   });
 
-  it('提示由真实数据逐级生成，不直接给出完整答案', () => {
-    const hints = buildHints(hello, 5);
-    expect(hints.map((item) => item.text)).toEqual([
-      'h',
-      '5 个字符',
-      'h e _ _ _',
-      '已重新播放发音，请仔细听',
-      '例句：____, how are you?；例句翻译：你好，你好吗？',
-    ]);
+  it.each([
+    ['hello', 'hel'],
+    ['planet', 'pla'],
+    ['a', 'a'],
+    ["I'm happy!", "I'm ha"],
+    ['a-b cdef', 'a-b c'],
+    ['---', ''],
+  ])('第一次提示 %s 的前半字母为 %s，第二次为完整答案', (word, prefix) => {
+    const vocabulary = makeVocabulary(word);
+    expect(MAX_HINT_LEVEL).toBe(2);
+    expect(buildHints(vocabulary, 0)).toEqual([]);
+    expect(buildHints(vocabulary, 1).map((hint) => hint.text)).toEqual([prefix]);
+    expect(buildHints(vocabulary, 2).map((hint) => hint.text)).toEqual([prefix, word]);
+    expect(buildHints(vocabulary, 5)).toHaveLength(2);
+  });
+
+  it('第三次错误显示答案但不通过，后续错误不重复记录显示答案', () => {
+    const ctx = freshCtx();
+    answer(ctx, 'helo');
+    answer(ctx, 'helo');
+    expect(ctx.state.showAnswerUsed).toBe(false);
+    const third = answer(ctx, 'helo');
+    expect(third).toMatchObject({ isCorrect: false, nextInputValue: '', attemptLog: { correct: false } });
+    expect(ctx.state).toMatchObject({ wrongAttempts: 3, showAnswerUsed: true, solved: false, firstTryCorrect: false });
+    expect(ctx.study).toMatchObject({ attempts: 3, wrongCount: 3, correctCount: 0 });
+    expect(ctx.wrong?.history.map((item) => item.action)).toEqual(['wrong', 'wrong', 'wrong', 'show-answer']);
+    answer(ctx, 'helo');
+    expect(ctx.study).toMatchObject({ attempts: 4, wrongCount: 4 });
+    expect(ctx.wrong?.wrongCount).toBe(4);
+    expect(ctx.wrong?.history.filter((item) => item.action === 'show-answer')).toHaveLength(1);
+    answer(ctx, 'hello');
+    expect(ctx.state).toMatchObject({ solved: true, firstTryCorrect: false });
+    expect(ctx.study).toMatchObject({ attempts: 5, wrongCount: 4, correctCount: 1, consecutiveCorrect: 0 });
+    expect(summarizeSession([ctx.state])).toMatchObject({ revealed: 1, totalWrongAttempts: 4, firstTryCorrect: 0 });
+  });
+
+  it('已显示答案后第三次答错不重复记录显示答案', () => {
+    const ctx = freshCtx();
+    const revealed = revealAnswer({ currentState: ctx.state, studyRecord: null, wrongQuestion: null, vocabularyId: hello.id, now: 'now' });
+    ctx.state = revealed.state;
+    ctx.study = revealed.studyRecord;
+    ctx.wrong = revealed.wrongQuestion;
+    for (let index = 0; index < 3; index += 1) answer(ctx, 'helo');
+    expect(ctx.study).toMatchObject({ attempts: 3, wrongCount: 3 });
+    expect(ctx.wrong?.history.filter((item) => item.action === 'show-answer')).toHaveLength(1);
   });
 });

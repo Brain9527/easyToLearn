@@ -117,23 +117,27 @@ export const submitAnswer = ({
   record.consecutiveCorrect = 0;
   record.masteryStatus = masteryFromCounts(record);
   const trimmed = input.trim();
+  const state = {
+    ...currentState,
+    wrongAttempts: currentState.wrongAttempts + 1,
+    firstTryCorrect: false,
+    solved: false,
+  };
+  const nextWrong = mistakeService.recordWrong(wrongQuestion, vocabularyId, trimmed, now);
+  const shouldReveal = state.wrongAttempts >= 3 && !state.showAnswerUsed;
+  const next = shouldReveal
+    ? revealAnswer({ currentState: state, studyRecord: record, wrongQuestion: nextWrong, vocabularyId, now })
+    : { state, studyRecord: record, wrongQuestion: nextWrong };
   return {
     isCorrect: false,
     nextInputValue: '',
-    message: '回答错误，请重新输入',
-    state: {
-      ...currentState,
-      wrongAttempts: currentState.wrongAttempts + 1,
-      firstTryCorrect: false,
-      solved: false,
-    },
-    studyRecord: record,
-    wrongQuestion: mistakeService.recordWrong(wrongQuestion, vocabularyId, trimmed, now),
+    message: shouldReveal ? '已答错三次，已显示正确答案，请照着拼写一遍。' : '回答错误，请重新输入',
+    ...next,
     attemptLog,
   };
 };
 
-/** 用户主动显示答案：记录操作、本题不再计为独立答对，并清零连续答对 */
+/** 显示答案：记录操作、本题不再计为独立答对，并清零连续答对 */
 export const revealAnswer = ({
   currentState,
   studyRecord,
@@ -260,47 +264,24 @@ export interface HintItem {
   text: string;
 }
 
-export const MAX_HINT_LEVEL = 5;
+export const MAX_HINT_LEVEL = 2;
 
-const maskPartial = (word: string): string => {
+const halfPrefix = (word: string): string => {
   const letters = word.split('').filter((char) => /[a-z]/i.test(char)).length;
-  const reveal = Math.max(1, Math.floor(letters / 2));
+  const reveal = Math.ceil(letters / 2);
+  if (reveal === 0) return '';
   let shown = 0;
-  return word
-    .split('')
-    .map((char) => {
-      if (!/[a-z]/i.test(char)) return char;
-      shown += 1;
-      return shown <= reveal ? char : '_';
-    })
-    .join(' ')
-    .replace(/ {3}/g, '   ');
+  for (let index = 0; index < word.length; index += 1) {
+    if (/[a-z]/i.test(word[index])) shown += 1;
+    if (shown === reveal) return word.slice(0, index + 1);
+  }
+  return word;
 };
 
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/** 根据真实词汇数据逐级生成提示（不会直接给出完整答案） */
+/** 两次提示分别提供前半字母的原始前缀和完整答案。 */
 export const buildHints = (vocabulary: Vocabulary, level: number): HintItem[] => {
-  const word = vocabulary.word;
   const hints: HintItem[] = [];
-  if (level >= 1) hints.push({ level: 1, label: '首字母', text: word.trim().charAt(0) });
-  if (level >= 2) {
-    const parts = word.trim().split(/\s+/);
-    const text = parts.length > 1 ? `${parts.length} 个单词，各 ${parts.map((item) => item.length).join(' / ')} 个字符` : `${word.length} 个字符`;
-    hints.push({ level: 2, label: '长度', text });
-  }
-  if (level >= 3) hints.push({ level: 3, label: '部分字母', text: maskPartial(word) });
-  if (level >= 4) hints.push({ level: 4, label: '发音', text: '已重新播放发音，请仔细听' });
-  if (level >= 5) {
-    const masked = vocabulary.example
-      ? vocabulary.example.replace(new RegExp(escapeRegExp(word), 'gi'), '____')
-      : '';
-    const extra = [
-      masked ? `例句：${masked}` : '',
-      vocabulary.exampleMeaning ? `例句翻译：${vocabulary.exampleMeaning}` : '',
-      vocabulary.notes ? `备注：${vocabulary.notes}` : '',
-    ].filter(Boolean);
-    hints.push({ level: 5, label: '更多释义', text: extra.length ? extra.join('；') : '该单词没有填写例句或备注' });
-  }
+  if (level >= 1) hints.push({ level: 1, label: '前半字母', text: halfPrefix(vocabulary.word) });
+  if (level >= 2) hints.push({ level: 2, label: '完整单词', text: vocabulary.word });
   return hints;
 };
